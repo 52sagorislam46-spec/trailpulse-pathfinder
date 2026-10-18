@@ -27,6 +27,7 @@ import { useAuth } from "./AuthContext";
 import { Avatar } from "./Avatar";
 import { formatViews } from "./views";
 import { isVideoPost } from "./usePosts";
+import { WeeklyEarningsChart, type DayStat } from "./WeeklyEarningsChart";
 
 const FOLLOWER_GOAL = 20;
 const POST_GOAL = 10;
@@ -98,6 +99,7 @@ export function CreatorDashboardPage({
   const [reelCount, setReelCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
+  const [weekly, setWeekly] = useState<DayStat[]>(() => buildWeek([]));
 
   useEffect(() => {
     if (!user) return;
@@ -122,6 +124,17 @@ export function CreatorDashboardPage({
           comments += Array.isArray(data["comments"]) ? data["comments"].length : 0;
           if (isVideoPost({ mediaType: data["mediaType"] ?? "", mediaUrl: data["mediaUrl"] ?? "" })) reels++;
         });
+        setWeekly(
+          buildWeek(
+            snap.docs.map((d) => {
+              const data = d.data();
+              return {
+                createdAt: typeof data["createdAt"] === "number" ? data["createdAt"] : 0,
+                views: typeof data["views"] === "number" ? data["views"] : 0,
+              };
+            }),
+          ),
+        );
         setLikeCount(likes);
         setCommentCount(comments);
         setReelCount(reels);
@@ -237,6 +250,8 @@ export function CreatorDashboardPage({
           </div>
         </div>
       </section>
+
+      <WeeklyEarningsChart days={weekly} loading={loading} />
 
       {monetizationStatus !== "approved" && (
       <section className="px-5 space-y-3">
@@ -483,4 +498,25 @@ function ProDashboard(p: {
       </section>
     </div>
   );
+}
+
+function buildWeek(posts: { createdAt: number; views: number }[]): DayStat[] {
+  const names = ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহঃ", "শুক্র", "শনি"];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const days: DayStat[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const from = new Date(start);
+    from.setDate(start.getDate() - i);
+    const to = from.getTime() + 86400000;
+    const views = posts
+      .filter((p) => p.createdAt >= from.getTime() && p.createdAt < to)
+      .reduce((a, p) => a + p.views, 0);
+    days.push({
+      label: names[from.getDay()] ?? "",
+      views,
+      earnings: Math.round((views / 1000) * BONUS_PER_1000_VIEWS * 100) / 100,
+    });
+  }
+  return days;
 }

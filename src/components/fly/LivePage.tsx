@@ -668,7 +668,7 @@ function LiveRoom({ liveId, onClose }: { liveId: string; onClose: () => void }) 
               <p className="text-[10px] text-white/70">❤️ {live.likes ?? 0} · ⭐ {live.stars ?? 0}</p>
             </div>
           </div>
-          <span className="px-2 py-0.5 rounded-md bg-rose-500 text-[10px] font-bold">LIVE</span>
+          <span className="px-2 py-0.5 rounded-md bg-rose-500 text-[10px] font-bold flex items-center gap-1">LIVE <span className="font-mono tabular-nums">{liveTime}</span></span>
           <span className="px-2 py-0.5 rounded-md bg-black/40 text-[10px] flex items-center gap-1">
             <Eye size={11} /> {Math.max(0, live.viewers ?? 0)}
           </span>

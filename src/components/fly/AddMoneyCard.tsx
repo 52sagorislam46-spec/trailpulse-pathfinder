@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Check, Copy, Loader2, PlusCircle } from "lucide-react";
 import { db } from "../../lib/firebase";
 import { useAuth } from "./AuthContext";
 import { submitRecharge, TAKA_PER_BOUGHT_STAR, usePaymentSettings, type RechargeRequest } from "./monetization";
@@ -62,7 +62,11 @@ export function AddMoneyCard() {
       <div className="rounded-xl bg-amber-50 p-3 text-sm text-gray-800">
         {target ? (
           <>এই {method} নম্বরে <b>Send Money</b> করুন: <span className="font-mono font-bold select-all">{target}</span>{" "}
-            <button type="button" onClick={() => void navigator.clipboard?.writeText(target).then(() => setMsg("নম্বর কপি হয়েছে"))} className="ml-1 px-2 py-0.5 rounded-lg bg-amber-500 text-white text-xs font-semibold">কপি</button></>
+            <button type="button" aria-label="নম্বর কপি করুন" onClick={() => {
+              const done = () => { setCopied(true); setMsg("নম্বর কপি হয়েছে"); setTimeout(() => setCopied(false), 2000); };
+              const fallback = () => { const ta = document.createElement("textarea"); ta.value = target; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); done(); } catch { /* ignore */ } ta.remove(); };
+              if (navigator.clipboard?.writeText) navigator.clipboard.writeText(target).then(done, fallback); else fallback();
+            }} className={`ml-1 inline-flex items-center justify-center w-7 h-7 align-middle rounded-lg text-white ${copied ? "bg-emerald-500" : "bg-amber-500"}`}>{copied ? <Check size={15} /> : <Copy size={15} />}</button></>
         ) : (
           <>{method} নম্বর এখনো সেট করা হয়নি।</>
         )}

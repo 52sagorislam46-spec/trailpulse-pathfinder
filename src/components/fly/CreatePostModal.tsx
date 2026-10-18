@@ -68,9 +68,9 @@ export function CreatePostModal({ onClose }: { onClose: () => void }) {
   };
 
   const submit = async () => {
-    if (!text.trim() && !file) return;
+    if (!text.trim() && !file && !showProduct) return;
     if (showProduct && (!productTitle.trim() || !productPrice.trim() || !productLink.trim())) {
-      setError("প্রোডাক্টের নাম, দাম ও অর্ডার লিংক দিন");
+      setError("প্রোডাক্টের নাম, দাম ও অর্ডার লিংক (WhatsApp নম্বর বা ওয়েবসাইট) দিন");
       return;
     }
     setBusy(true);
@@ -105,7 +105,7 @@ export function CreatePostModal({ onClose }: { onClose: () => void }) {
         authorName: profile.displayName,
         authorUsername: profile.username,
         authorPhoto: profile.photoURL,
-        text: text.trim(),
+        text: text.trim() || (product ? `🛍️ ${product.title}` : ""),
         mediaUrl,
         mediaType,
         media: media.length > 1 ? media : [],
@@ -310,7 +310,7 @@ export function CreatePostModal({ onClose }: { onClose: () => void }) {
           </button>
           <button
             onClick={submit}
-            disabled={busy || (!text.trim() && !file)}
+            disabled={busy || (!text.trim() && !file && !(showProduct && productTitle.trim()))}
             className="h-10 px-6 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-semibold flex items-center gap-2 disabled:opacity-50"
           >
             {busy && <Loader2 size={16} className="animate-spin" />}

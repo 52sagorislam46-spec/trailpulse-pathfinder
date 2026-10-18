@@ -39,6 +39,15 @@ function toPost(id: string, data: any): Post {
     views: typeof data.views === "number" ? data.views : 0,
     exclusive: data.exclusive === true,
     bgStyle: typeof data.bgStyle === "string" ? data.bgStyle : "",
+    product:
+      data.product && typeof data.product === "object" && data.product.title
+        ? {
+            title: String(data.product.title ?? ""),
+            price: String(data.product.price ?? ""),
+            imageUrl: String(data.product.imageUrl ?? ""),
+            link: String(data.product.link ?? ""),
+          }
+        : null,
     createdAt: toMillis(data.createdAt),
   };
 }

@@ -11,6 +11,7 @@ export function AddMoneyCard() {
   const settings = usePaymentSettings();
   const [kind, setKind] = useState<"wallet" | "stars">("stars");
   const [method, setMethod] = useState<"bKash" | "Nagad">("bKash");
+  const [copied, setCopied] = useState(false);
   const [amount, setAmount] = useState("");
   const [sender, setSender] = useState("");
   const [trx, setTrx] = useState("");

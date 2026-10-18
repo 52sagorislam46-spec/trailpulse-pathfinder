@@ -411,22 +411,89 @@ function LiveRoom({ liveId, onClose }: { liveId: string; onClose: () => void }) 
   }, [micOn, local]);
 
   // Host: record the broadcast so it can be uploaded when the live ends.
+  // The camera stream is drawn onto a canvas and the mic is routed through an
+  // AudioContext, so the recording keeps running for the whole live even when
+  // the camera is flipped or the camera stream is recreated.
+  const recSrc = useRef<{ video: HTMLVideoElement; ctx: AudioContext | null; dest: MediaStreamAudioDestinationNode | null; node: MediaStreamAudioSourceNode | null } | null>(null);
   useEffect(() => {
-    if (!isHost || !local || recorder.current || typeof MediaRecorder === "undefined") return;
-    const types = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
-    const mimeType = types.find((t) => MediaRecorder.isTypeSupported?.(t));
+    if (!isHost || !local || typeof MediaRecorder === "undefined") return;
+    // Already recording: just swap the source to the new camera stream.
+    if (recorder.current && recSrc.current) {
+      const src = recSrc.current;
+      src.video.srcObject = local;
+      void src.video.play().catch(() => {});
+      if (src.ctx && src.dest) {
+        try {
+          src.node?.disconnect();
+          src.node = local.getAudioTracks().length ? src.ctx.createMediaStreamSource(local) : null;
+          src.node?.connect(src.dest);
+        } catch { /* ignore */ }
+      }
+      return;
+    }
+    if (recorder.current) return;
     try {
-      const rec = new MediaRecorder(local, mimeType ? { mimeType, videoBitsPerSecond: 1_200_000 } : undefined);
+      const video = document.createElement("video");
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = local;
+      void video.play().catch(() => {});
+      const canvas = document.createElement("canvas");
+      canvas.width = 540;
+      canvas.height = 960;
+      const g = canvas.getContext("2d");
+      const draw = setInterval(() => {
+        if (!g || video.readyState < 2) return;
+        const vw = video.videoWidth || 540;
+        const vh = video.videoHeight || 960;
+        const scale = Math.max(canvas.width / vw, canvas.height / vh);
+        const w = vw * scale;
+        const h = vh * scale;
+        g.drawImage(video, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+      }, 1000 / 24);
+      let ctx: AudioContext | null = null;
+      let dest: MediaStreamAudioDestinationNode | null = null;
+      let node: MediaStreamAudioSourceNode | null = null;
+      try {
+        const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        ctx = new AC();
+        void ctx.resume().catch(() => {});
+        dest = ctx.createMediaStreamDestination();
+        if (local.getAudioTracks().length) {
+          node = ctx.createMediaStreamSource(local);
+          node.connect(dest);
+        }
+      } catch { ctx = null; dest = null; }
+      const out = canvas.captureStream(24);
+      dest?.stream.getAudioTracks().forEach((t) => out.addTrack(t));
+      const types = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
+      const mimeType = types.find((t) => MediaRecorder.isTypeSupported?.(t));
+      const rec = new MediaRecorder(out, { ...(mimeType ? { mimeType } : {}), videoBitsPerSecond: 800_000, audioBitsPerSecond: 64_000 });
       chunks.current = [];
       rec.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunks.current.push(e.data);
       };
+      rec.addEventListener("stop", () => {
+        clearInterval(draw);
+        out.getTracks().forEach((t) => t.stop());
+        void ctx?.close().catch(() => {});
+      });
       rec.start(1000);
       recorder.current = rec;
+      recSrc.current = { video, ctx, dest, node };
     } catch {
       /* recording not supported on this device */
     }
   }, [isHost, local]);
+
+  // Live duration timer.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const liveSecs = Math.max(0, Math.floor((now - (live?.startedAt ?? joinedAt)) / 1000));
+  const liveTime = `${liveSecs >= 3600 ? `${Math.floor(liveSecs / 3600)}:` : ""}${String(Math.floor((liveSecs % 3600) / 60)).padStart(2, "0")}:${String(liveSecs % 60).padStart(2, "0")}`;
 
   // ---- Publisher: answer every viewer's offer ----
   const servePcs = useRef<Map<string, { pc: RTCPeerConnection; ts: number }>>(new Map());
@@ -601,7 +668,7 @@ function LiveRoom({ liveId, onClose }: { liveId: string; onClose: () => void }) 
               <p className="text-[10px] text-white/70">❤️ {live.likes ?? 0} · ⭐ {live.stars ?? 0}</p>
             </div>
           </div>
-          <span className="px-2 py-0.5 rounded-md bg-rose-500 text-[10px] font-bold">LIVE</span>
+          <span className="px-2 py-0.5 rounded-md bg-rose-500 text-[10px] font-bold flex items-center gap-1">LIVE <span className="font-mono tabular-nums">{liveTime}</span></span>
           <span className="px-2 py-0.5 rounded-md bg-black/40 text-[10px] flex items-center gap-1">
             <Eye size={11} /> {Math.max(0, live.viewers ?? 0)}
           </span>
